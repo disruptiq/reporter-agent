@@ -46,7 +46,7 @@ class ReportSection:
     summary: str
 
 class CybersecurityReporterAgent:
-    def __init__(self, outputs_dir: str = "outputs", max_file_size_mb: int = 100):
+    def __init__(self, outputs_dir: str = "inputs", max_file_size_mb: int = 100):
         self.outputs_dir = pathlib.Path(outputs_dir)
         self.max_file_size_mb = max_file_size_mb
         self.findings: List[Finding] = []
@@ -431,18 +431,18 @@ class CybersecurityReporterAgent:
         """Create organized repository structure with reports and findings."""
         # Create directories
         repo_dirs = [
-            "reports",
-            "findings/by-severity",
-            "findings/by-category",
-            "findings/by-tool",
-            "assets"
+            "output/reports",
+            "output/findings/by-severity",
+            "output/findings/by-category",
+            "output/findings/by-tool",
+            "output/assets"
         ]
 
         for dir_name in repo_dirs:
             pathlib.Path(dir_name).mkdir(parents=True, exist_ok=True)
 
         # Write main report
-        with open("reports/cybersecurity-report.html", 'w', encoding='utf-8') as f:
+        with open("output/reports/cybersecurity-report.html", 'w', encoding='utf-8') as f:
             f.write(report_content)
 
         # Write categorized findings
@@ -510,19 +510,19 @@ class CybersecurityReporterAgent:
         # Write severity files
         for severity, findings in categories.items():
             content = generate_findings_html(f"{severity.capitalize()} Severity Findings", findings)
-            with open(f"findings/by-severity/{severity}.html", 'w', encoding='utf-8') as f:
+            with open(f"output/findings/by-severity/{severity}.html", 'w', encoding='utf-8') as f:
                 f.write(content)
 
         # Write category files
         for category, findings in category_findings.items():
             content = generate_findings_html(f"{category.replace('_', ' ').title()} Findings", findings)
-            with open(f"findings/by-category/{category}.html", 'w', encoding='utf-8') as f:
+            with open(f"output/findings/by-category/{category}.html", 'w', encoding='utf-8') as f:
                 f.write(content)
 
         # Write tool files
         for tool, findings in tool_findings.items():
             content = generate_findings_html(f"{tool.replace('-', ' ').title()} Findings", findings)
-            with open(f"findings/by-tool/{tool}.html", 'w', encoding='utf-8') as f:
+            with open(f"output/findings/by-tool/{tool}.html", 'w', encoding='utf-8') as f:
                 f.write(content)
 
         # Create README
@@ -532,10 +532,10 @@ This repository contains the results of comprehensive cybersecurity analysis per
 
 ## Structure
 
-- `reports/` - Main analysis reports (HTML format)
-- `findings/` - Organized findings by severity, category, and tool (HTML format)
-- `assets/` - Supporting assets and documentation
-- `outputs/` - Raw scanner outputs (preserved)
+- `output/reports/` - Main analysis reports (HTML format)
+- `output/findings/` - Organized findings by severity, category, and tool (HTML format)
+- `output/assets/` - Supporting assets and documentation
+- `inputs/` - Raw scanner outputs (preserved)
 
 ## Summary
 
@@ -554,7 +554,7 @@ This repository contains the results of comprehensive cybersecurity analysis per
         for tool in sorted(tools):
             readme += f"- {tool}\n"
 
-        with open("README.md", 'w', encoding='utf-8') as f:
+        with open("output/README.md", 'w', encoding='utf-8') as f:
             f.write(readme)
 
     def run(self):
@@ -577,7 +577,7 @@ This repository contains the results of comprehensive cybersecurity analysis per
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cybersecurity Reporter Agent - Process security scanner outputs and generate reports.")
-    parser.add_argument("output_dir", nargs="?", default="outputs", help="Path to the directory containing security scanner output files (default: outputs)")
+    parser.add_argument("output_dir", nargs="?", default="inputs", help="Path to the directory containing security scanner output files (default: inputs)")
     args = parser.parse_args()
 
     agent = CybersecurityReporterAgent(outputs_dir=args.output_dir)
