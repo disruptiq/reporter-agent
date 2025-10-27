@@ -221,6 +221,21 @@ class CybersecurityReporterAgent:
         categories = self.categorize_findings()
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+        # Load graph data
+        graph_data = {}
+        graph_path = pathlib.Path("inputs/mapper-agent/topological-graph-output.json")
+        if graph_path.exists():
+            try:
+                with open(graph_path, 'r', encoding='utf-8') as f:
+                    graph_data = json.load(f)
+            except Exception as e:
+                print(f"Warning: Could not load graph data: {e}")
+                graph_data = {}
+
+        # Serialize graph data
+        graph_data_json = json.dumps(graph_data)
+        print(f"Graph data length: {len(graph_data_json)}")
+
         severity_colors = {
             'critical': '#dc3545',
             'high': '#fd7e14',
@@ -233,9 +248,10 @@ class CybersecurityReporterAgent:
         html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cybersecurity Analysis Report</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Cybersecurity Analysis Report</title>
+        <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <style>
         body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -336,6 +352,28 @@ class CybersecurityReporterAgent:
             padding: 2px 4px;
             border-radius: 3px;
         }}
+        #graph-container {{
+            width: 100%;
+            height: 600px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }}
+        #metadata-panel {{
+            width: 100%;
+            height: 300px;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            background-color: #1A1A1A;
+            color: #EAEAEA;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }}
+        #metadata-panel h3 {{
+            margin-top: 0;
+            color: #FFFFFF;
+        }}
     </style>
 </head>
 <body>
@@ -346,6 +384,15 @@ class CybersecurityReporterAgent:
             <strong>Generated on:</strong> {now}<br>
             <strong>Files Processed:</strong> {self.file_count} | <strong>Files Skipped:</strong> {self.skipped_files}<br>
             <strong>Total Findings:</strong> {len(self.findings)}
+        </div>
+        </div>
+
+        <div class="findings-section">
+        <h2>📊 Code Dependency Graph</h2>
+        <div id="graph-container"></div>
+        <div id="metadata-panel">
+            <h3>Node Metadata</h3>
+            <p>Click on a node to see its details.</p>
         </div>
     </div>
 
@@ -421,9 +468,108 @@ class CybersecurityReporterAgent:
             <li><strong>Supply Chain Security</strong><br>Audit third-party dependencies and keep them updated.</li>
             <li><strong>Network Security</strong><br>Monitor for suspicious network activity and implement proper network segmentation.</li>
         </ul>
-    </div>
+        </div>
+
+        <script type="text/javascript">
+        window.graphData = {{GRAPH_DATA_PLACEHOLDER}};
+        </script>
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            const graphData = window.graphData;
+            if (!graphData || !graphData.nodes) {
+                document.getElementById('metadata-panel').innerHTML = '<h3>No Graph Data</h3><p>Graph data could not be loaded.</p>';
+                return;
+            }
+
+            const container = document.getElementById('graph-container');
+            const metadataPanel = document.getElementById('metadata-panel');
+
+                    // --- "DeepFence" Aesthetic Style Mapping ---
+                    const styleMap = {
+                        file:      { color: { border: '#3498DB', background: '#283747' }, shape: 'box', borderWidth: 2.5 },
+                        class:     { color: '#8E44AD', shape: 'diamond' },
+                        function:  { color: '#ECF0F1', shape: 'ellipse' },
+                        variable:  { color: '#3498DB', shape: 'dot' },
+                        interface: { color: '#C0392B', shape: 'triangle' },
+                        type:      { color: '#E74C3C', shape: 'triangleDown' },
+                        enum:      { color: '#16A085', shape: 'hexagon' },
+                        namespace: { color: { border: '#566573', background: '#283747' }, shape: 'database' },
+                        default:   { color: '#7F8C8D', shape: 'ellipse' }
+                    };
+
+                    // --- Data Transformation for Vis.js ---
+                    const nodes = new vis.DataSet(
+                        graphData.nodes.map(node => {
+                            const style = styleMap[node.type] || styleMap.default;
+                            return {
+                                id: node.id,
+                                label: node.name,
+                                color: style.color,
+                                shape: style.shape,
+                                font: { color: (node.type === 'function' ? '#2C3E50' : '#FFFFFF') },
+                                shadow: { enabled: true, color: 'rgba(0,0,0,0.5)', size: 10, x: 5, y: 5 },
+                                borderWidth: style.borderWidth || 1.5 // Apply specific border width or default
+                            };
+                        })
+                    );
+
+                    const edges = new vis.DataSet(
+                        graphData.links.map(edge => ({
+                            from: edge.source,
+                            to: edge.target,
+                            arrows: 'to',
+                            color: { color: '#444444', highlight: '#888888' },
+                            width: 0.5
+                        }))
+                    );
+
+                    const data = { nodes, edges };
+
+                    const options = {
+                        layout: {
+                            hierarchical: false,
+                            improvedLayout: false
+                        },
+                        physics: {
+                            solver: 'forceAtlas2Based',
+                            forceAtlas2Based: {
+                                gravitationalConstant: -150, // Increased repulsion
+                                centralGravity: 0.01,       // Increased pull to center
+                                springLength: 300,          // Increased ideal edge length
+                                springConstant: 0.08,       // Slightly weaker springs
+                                avoidOverlap: 0.8           // Stronger overlap avoidance
+                            }
+                        },
+                        nodes: {
+                            borderWidth: 1.5
+                        },
+                        edges: {
+                            smooth: {
+                                type: 'continuous'
+                            }
+                        }
+                    };
+
+                    // Initialize the Network
+                    const network = new vis.Network(container, data, options);
+
+                    // --- Click Event Handler ---
+                    network.on('click', function(params) {
+                        if (params.nodes.length > 0) {
+                            const nodeId = params.nodes[0];
+                            const nodeData = graphData.nodes.find(n => n.id === nodeId);
+
+                            if (nodeData) {
+                                let metadataHtml = `<h3>Node Metadata</h3>`;
+                                metadataHtml += `<pre>${JSON.stringify(nodeData, null, 2)}</pre>`;
+                                metadataPanel.innerHTML = metadataHtml;
+                            }
+                        }
+                    });
+        });
+    </script>
 </body>
-</html>"""
+</html>""".replace('{{GRAPH_DATA_PLACEHOLDER}}', json.dumps(graph_data))
 
         return html
 
